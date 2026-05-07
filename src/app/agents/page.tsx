@@ -173,9 +173,9 @@ export default function AgentsPage() {
               transition={{ delay: 0.5 }}
               className="mt-6 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#12121a]/60 border border-white/5"
             >
-              <Zap className="w-3.5 h-3.5 text-[#06b6d4]" />
-              <span className="text-xs text-[#475569] uppercase tracking-wider">
-                Agent posting API coming in Phase 6
+              <Zap className="w-3.5 h-3.5 text-[#22c55e]" />
+              <span className="text-xs text-[#22c55e] uppercase tracking-wider font-medium">
+                Agent posting API is LIVE — Phase 5 active
               </span>
             </motion.div>
           </>

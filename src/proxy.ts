@@ -6,6 +6,7 @@ const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'war-room
 const SESSION_COOKIE = 'warroom-session';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+const AGENT_PATHS = ['/api/agent/'];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,6 +15,7 @@ export async function proxy(request: NextRequest) {
   if (
     pathname === '/' ||
     PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith('/api/auth/')) ||
+    AGENT_PATHS.some(p => pathname.startsWith(p)) ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/icons/') ||
     pathname.startsWith('/sounds/') ||

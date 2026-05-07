@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, MessageSquare, Radio, Zap, Shield, Crosshair, Cpu, Rocket, Palette, Sparkles, Wifi, Lightbulb, Microscope, Hash, Loader2, Reply } from 'lucide-react';
+import { RefreshCw, MessageSquare, Radio, Zap, Shield, Crosshair, Cpu, Rocket, Palette, Sparkles, Wifi, Lightbulb, Microscope, Hash, Loader2, Reply, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { WarRoomShell } from '@/components/WarRoomShell';
@@ -55,6 +55,26 @@ function getRoleColor(role: string) {
     case 'supreme commander': return 'text-[#ef4444] border-[#ef4444]/30 bg-[#ef4444]/10';
     case 'field commander': return 'text-[#06b6d4] border-[#06b6d4]/30 bg-[#06b6d4]/10';
     default: return 'text-[#94a3b8] border-[#94a3b8]/30 bg-[#94a3b8]/10';
+  }
+}
+
+
+function isAgentPost(author: Author): boolean {
+  return author.roleTitle === 'Autonomous Agent' || author.username.startsWith('agent-');
+}
+
+function getAgentTypeColor(type: string): { bg: string; text: string; border: string } {
+  switch (type) {
+    case 'sitrep': return { bg: '#06b6d415', text: '#06b6d4', border: '#06b6d430' };
+    case 'art_drop': return { bg: '#a855f715', text: '#a855f7', border: '#a855f730' };
+    case 'build_log': return { bg: '#22c55e15', text: '#22c55e', border: '#22c55e30' };
+    case 'research_find': return { bg: '#3b82f615', text: '#3b82f6', border: '#3b82f630' };
+    case 'music_drop': return { bg: '#ec489915', text: '#ec4899', border: '#ec489930' };
+    case 'iot_event': return { bg: '#f59e0b15', text: '#f59e0b', border: '#f59e0b30' };
+    case 'alert': return { bg: '#ef444415', text: '#ef4444', border: '#ef444430' };
+    case 'mission_complete': return { bg: '#22c55e15', text: '#22c55e', border: '#22c55e30' };
+    case 'error_report': return { bg: '#ef444415', text: '#ef4444', border: '#ef444430' };
+    default: return { bg: '#06b6d415', text: '#06b6d4', border: '#06b6d430' };
   }
 }
 
@@ -262,12 +282,25 @@ function FeedContent() {
               >
                 {/* Card Header */}
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#ef4444]/30 to-[#06b6d4]/30 flex items-center justify-center text-sm font-bold text-[#e2e8f0] border border-white/10 shrink-0">
-                    {post.author.displayName.charAt(0)}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border shrink-0 ${
+                    isAgentPost(post.author)
+                      ? 'bg-gradient-to-br from-[#06b6d4]/30 to-[#a855f7]/30 text-[#06b6d4] border-[#06b6d4]/30'
+                      : 'bg-gradient-to-br from-[#ef4444]/30 to-[#06b6d4]/30 text-[#e2e8f0] border-white/10'
+                  }`}>
+                    {isAgentPost(post.author) ? (
+                      <Bot className="w-4 h-4" />
+                    ) : (
+                      post.author.displayName.charAt(0)
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-[#e2e8f0] truncate">{post.author.displayName}</span>
+                      {isAgentPost(post.author) && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border text-[#06b6d4] border-[#06b6d4]/30 bg-[#06b6d4]/10">
+                          Agent
+                        </span>
+                      )}
                       <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${getRoleColor(post.author.roleTitle)}`}>
                         {post.author.roleTitle}
                       </span>
@@ -278,6 +311,17 @@ function FeedContent() {
                         {getRoomIcon(post.room.slug || post.room.name)}
                         {post.room.name}
                       </span>
+                      {isAgentPost(post.author) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
+                          style={{
+                            backgroundColor: getAgentTypeColor(post.type).bg,
+                            color: getAgentTypeColor(post.type).text,
+                            border: `1px solid ${getAgentTypeColor(post.type).border}`,
+                          }}>
+                          <Zap className="w-3 h-3" />
+                          {post.type.replace(/_/g, ' ')}
+                        </span>
+                      )}
                       <span className="text-xs text-[#475569]">{relativeTime(post.createdAt)}</span>
                     </div>
                   </div>
