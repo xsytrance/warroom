@@ -55,7 +55,7 @@ function LoginForm() {
               transition={{ delay: 0.2, duration: 0.6 }}
               className="mb-4 inline-flex items-center justify-center"
             >
-              <WarRoomInsignia size={64} animated={true} />
+              <WarRoomInsignia size="lg" />
             </motion.div>
 
             <motion.h1
