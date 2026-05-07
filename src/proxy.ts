@@ -5,7 +5,7 @@ import { jwtVerify } from 'jose';
 const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'war-room-secret-key-change-in-production');
 const SESSION_COOKIE = 'warroom-session';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/health'];
 const AGENT_PATHS = ['/api/agent/'];
 
 export async function proxy(request: NextRequest) {
