@@ -61,10 +61,13 @@ export async function POST(request: Request) {
       metadata,
     } = body;
 
-    // 2. Validate required fields
-    if (!postBody || typeof postBody !== "string" || postBody.trim().length === 0) {
+    // 2. Validate required fields — body OR mediaUrl required
+    const hasBody = postBody && typeof postBody === "string" && postBody.trim().length > 0;
+    const hasMedia = mediaUrl && typeof mediaUrl === "string" && mediaUrl.trim().length > 0;
+
+    if (!hasBody && !hasMedia) {
       return NextResponse.json(
-        { error: "Message body is required" },
+        { error: "Message body or media URL is required" },
         { status: 400 }
       );
     }
@@ -76,8 +79,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Validate body length
-    if (postBody.trim().length > MAX_BODY_LENGTH) {
+    // 3. Validate body length (only if body exists)
+    if (hasBody && postBody.trim().length > MAX_BODY_LENGTH) {
       return NextResponse.json(
         { error: `Message exceeds ${MAX_BODY_LENGTH} character limit` },
         { status: 400 }
@@ -142,7 +145,7 @@ export async function POST(request: Request) {
     // 9. Create the post using shadow user ID
     const post = await prisma.post.create({
       data: {
-        body: postBody.trim(),
+        body: hasBody ? postBody.trim() : '',
         roomId: room.id,
         authorId: agent.shadowUserId,
         type: postType,

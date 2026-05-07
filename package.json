@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "db:studio": "prisma studio",
+    "agent:token": "tsx scripts/generate-agent-token.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

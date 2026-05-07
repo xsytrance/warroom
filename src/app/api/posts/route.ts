@@ -39,16 +39,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { body: postBody, roomId, type, mediaUrl, mediaType, linkUrl } = body;
 
-    // Validation
-    if (!postBody || typeof postBody !== 'string' || postBody.trim().length === 0) {
-      return NextResponse.json({ error: 'Message body is required' }, { status: 400 });
+    // Validation: allow body OR mediaUrl — reject only if both are empty
+    const hasBody = postBody && typeof postBody === 'string' && postBody.trim().length > 0;
+    const hasMedia = mediaUrl && typeof mediaUrl === 'string' && mediaUrl.trim().length > 0;
+
+    if (!hasBody && !hasMedia) {
+      return NextResponse.json({ error: 'Message body or media is required' }, { status: 400 });
     }
 
     if (!roomId || typeof roomId !== 'string') {
       return NextResponse.json({ error: 'Room is required' }, { status: 400 });
     }
 
-    if (postBody.trim().length > 2000) {
+    if (hasBody && postBody.trim().length > 2000) {
       return NextResponse.json({ error: 'Message exceeds 2000 character limit' }, { status: 400 });
     }
 
@@ -58,7 +61,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid room — room not found' }, { status: 400 });
     }
 
-    const trimmedBody = postBody.trim();
+    const trimmedBody = hasBody ? postBody.trim() : '';
 
     // Create post
     const post = await prisma.post.create({
