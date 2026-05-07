@@ -1,0 +1,187 @@
+# ============================================================================
+# nginx.war-room.example - Nginx reverse proxy for The War Room
+# ============================================================================
+# Purpose:
+#   Alternative to Caddy.  Serves The War Room Next.js PWA over HTTPS on
+#   the Tailnet interface, proxying all requests to the local Node.js app.
+#
+# Prerequisites:
+#   1. Install Nginx:    sudo apt install nginx
+#   2. Generate a self-signed SSL certificate (see SSL section below).
+#   3. The war-room.service must be running on 127.0.0.1:3000.
+#
+# Setup steps:
+#   1. Generate self-signed cert (see SSL section below).
+#   2. Copy this file:   sudo cp nginx.war-room.example \
+#                           /etc/nginx/sites-available/war-room
+#   3. Enable site:      sudo ln -s /etc/nginx/sites-available/war-room \
+#                           /etc/nginx/sites-enabled/war-room
+#   4. Test config:      sudo nginx -t
+#   5. Reload Nginx:     sudo systemctl reload nginx
+#   6. Verify:           sudo systemctl status nginx
+#
+# To remove the default site (optional):
+#   sudo rm /etc/nginx/sites-enabled/default
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# Upstream: the Next.js app running via systemd on localhost
+# --------------------------------------------------------------------------
+upstream warroom_app {
+    # The war-room.service binds to 127.0.0.1:3000.
+    server 127.0.0.1:3000;
+
+    # Keep a small pool of persistent connections to avoid TCP handshake
+    # overhead on every request.
+    keepalive 32;
+}
+
+# --------------------------------------------------------------------------
+# Server block: HTTPS on the Tailnet interface only
+# --------------------------------------------------------------------------
+server {
+    # Listen on the Tailscale IP + custom port with SSL.
+    # This ensures the app is NOT exposed to the public internet.
+    listen 100.65.108.84:11369 ssl;
+
+    # ------------------------------------------------------------------
+    # SSL / TLS configuration (self-signed certificate)
+    # ------------------------------------------------------------------
+    # Self-signed certs are acceptable inside a Tailnet because Tailscale
+    # already provides end-to-end encryption for the tunnel.
+    #
+    # --- HOW TO GENERATE THE CERTIFICATE --------------------------------
+    # Run the following commands once to create a self-signed cert:
+    #
+    #   sudo mkdir -p /etc/nginx/ssl
+    #   sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    #       -keyout /etc/nginx/ssl/war-room.key \
+    #       -out /etc/nginx/ssl/war-room.crt \
+    #       -subj "/CN=war-room.tailnet"
+    #
+    # This creates:
+    #   /etc/nginx/ssl/war-room.crt   (public certificate)
+    #   /etc/nginx/ssl/war-room.key   (private key)
+    # ------------------------------------------------------------------
+
+    ssl_certificate     /etc/nginx/ssl/war-room.crt;
+    ssl_certificate_key /etc/nginx/ssl/war-room.key;
+
+    # Modern SSL configuration
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # ------------------------------------------------------------------
+    # Logging
+    # ------------------------------------------------------------------
+    access_log /var/log/nginx/war-room.access.log;
+    error_log  /var/log/nginx/war-room.error.log;
+
+    # ------------------------------------------------------------------
+    # Gzip compression
+    # ------------------------------------------------------------------
+    # Compress text responses to reduce bandwidth on the Tailnet.
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/javascript
+        application/xml+rss
+        application/json
+        image/svg+xml;
+
+    # ------------------------------------------------------------------
+    # Proxy to Next.js app
+    # ------------------------------------------------------------------
+    location / {
+        proxy_pass         http://warroom_app;
+        proxy_http_version 1.1;
+
+        # ----------------------------------------------------------------
+        # Connection keep-alive (re-use upstream connections)
+        # ----------------------------------------------------------------
+        proxy_set_header Connection "";
+
+        # ----------------------------------------------------------------
+        # Forwarded headers (required for Next.js to function correctly)
+        # ----------------------------------------------------------------
+        # Original Host header so Next.js generates correct absolute URLs.
+        proxy_set_header Host $host;
+
+        # Real client IP so the app can use it for logging / rate-limiting.
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Full proxy chain for audit trails.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # Original scheme (https) so Next.js builds https:// URLs for
+        # redirects, OG meta tags, etc.
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # ----------------------------------------------------------------
+        # Timeout settings
+        # ----------------------------------------------------------------
+        # Give the Node.js app reasonable time to respond.  Adjust these
+        # if you have long-running API endpoints.
+        proxy_connect_timeout 30s;
+        proxy_send_timeout    30s;
+        proxy_read_timeout    30s;
+
+        # ----------------------------------------------------------------
+        # Buffer settings (tune for your app's response sizes)
+        # ----------------------------------------------------------------
+        proxy_buffering on;
+        proxy_buffer_size          4k;
+        proxy_buffers              8 4k;
+    }
+
+    # ------------------------------------------------------------------
+    # WebSocket support (optional - enable if your app uses WS/WSS)
+    # ------------------------------------------------------------------
+    # Next.js Hot Module Replacement in dev uses WebSockets, but in
+    # production standalone mode this is typically not needed.
+    # Uncomment the block below if your app uses WebSockets:
+    #
+    # location /ws {
+    #     proxy_pass         http://warroom_app;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header   Upgrade $http_upgrade;
+    #     proxy_set_header   Connection "upgrade";
+    #     proxy_set_header   Host $host;
+    #     proxy_set_header   X-Real-IP $remote_addr;
+    #     proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header   X-Forwarded-Proto $scheme;
+    #     proxy_read_timeout 86400s;
+    # }
+}
+
+# ============================================================================
+# ALTERNATIVE: Tailscale Certificate (MagicDNS) approach
+# ============================================================================
+# If you have MagicDNS enabled, you can use a real certificate instead of
+# the self-signed one above.
+#
+# 1. Find your MagicDNS hostname:
+#      tailscale status --json | jq -r '.Self.DNSName'
+#    Example output:  myhost.tail1234.ts.net.
+#
+# 2. Generate a certificate:
+#      sudo tailscale cert myhost.tail1234.ts.net
+#    This creates:
+#      /var/lib/tailscale/certs/myhost.tail1234.ts.net.crt
+#      /var/lib/tailscale/certs/myhost.tail1234.ts.net.key
+#
+# 3. Replace the ssl_certificate and ssl_certificate_key lines above with:
+#
+#   ssl_certificate     /var/lib/tailscale/certs/myhost.tail1234.ts.net.crt;
+#   ssl_certificate_key /var/lib/tailscale/certs/myhost.tail1234.ts.net.key;
+#
+# No other changes are needed - Nginx will serve a real trusted cert
+# without any public internet exposure.
+# ============================================================================

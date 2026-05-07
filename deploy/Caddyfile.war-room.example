@@ -1,0 +1,113 @@
+# ============================================================================
+# Caddyfile.war-room.example - Caddy reverse proxy for The War Room
+# ============================================================================
+# Purpose:
+#   Serves The War Room Next.js PWA over HTTPS on the Tailnet interface.
+#   All public traffic terminates here and is forwarded to the local Node.js
+#   app running on localhost:3000.
+#
+# Prerequisites:
+#   1. Install Caddy:   sudo apt install caddy
+#   2. Caddy listens on the Tailnet IP (100.65.108.84:11369).
+#   3. The war-room.service must be running on 127.0.0.1:3000.
+#
+# Setup steps:
+#   1. Copy this file:   sudo cp Caddyfile.war-room.example /etc/caddy/Caddyfile
+#   2. Validate config:  sudo caddy validate --config /etc/caddy/Caddyfile
+#   3. Reload Caddy:     sudo systemctl reload caddy
+#   4. Verify:           sudo systemctl status caddy
+#
+# Tailnet address (binds only on the Tailscale interface):
+#   This ensures the app is NOT exposed to the public internet.
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# Site block: listen on Tailnet IP + custom port
+# --------------------------------------------------------------------------
+100.65.108.84:11369 {
+
+    # ------------------------------------------------------------------
+    # TLS configuration
+    # ------------------------------------------------------------------
+    # Use Caddy's internal (self-signed) TLS by default.  This is safe
+    # inside a Tailnet because Tailscale already encrypts the tunnel.
+    tls internal
+
+    # ------------------------------------------------------------------
+    # Logging
+    # ------------------------------------------------------------------
+    # Emit access logs to stdout so they appear in the systemd journal.
+    log {
+        output stdout
+        format json
+    }
+
+    # ------------------------------------------------------------------
+    # Compression
+    # ------------------------------------------------------------------
+    # Compress text responses to reduce bandwidth on the Tailnet.
+    encode gzip zstd
+
+    # ------------------------------------------------------------------
+    # Reverse proxy to Next.js app
+    # ------------------------------------------------------------------
+    reverse_proxy 127.0.0.1:3000 {
+
+        # Forward original Host header so Next.js can generate correct
+        # absolute URLs and handle multi-tenant logic if needed.
+        header_up Host {host}
+
+        # Pass the real client IP through the Tailscale tunnel so the
+        # app can use it for logging or rate-limiting.
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+
+        # Tell Next.js the original scheme (https) so it builds
+        # https:// URLs for redirects, OG tags, etc.
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# ============================================================================
+# ALTERNATIVE: Tailscale Certificate (MagicDNS) approach
+# ============================================================================
+# If you have MagicDNS enabled, you can use a real Let's-Encrypt-backed
+# certificate instead of the internal self-signed one.  Steps:
+#
+# 1. Find your MagicDNS hostname:
+#      tailscale status --json | jq -r '.Self.DNSName'
+#    Example output:  myhost.tail1234.ts.net.
+#
+# 2. Generate a certificate (Caddy can also do this automatically, but
+#    pre-generating avoids startup delays):
+#      sudo tailscale cert myhost.tail1234.ts.net
+#    This creates:
+#      /var/lib/tailscale/certs/myhost.tail1234.ts.net.crt
+#      /var/lib/tailscale/certs/myhost.tail1234.ts.net.key
+#
+# 3. Replace the site block above with the following:
+#
+# ------------------------------------------------------------------------
+# myhost.tail1234.ts.net:11369 {
+#     tls /var/lib/tailscale/certs/myhost.tail1234.ts.net.crt \
+#         /var/lib/tailscale/certs/myhost.tail1234.ts.net.key
+#
+#     log {
+#         output stdout
+#         format json
+#     }
+#
+#     encode gzip zstd
+#
+#     reverse_proxy 127.0.0.1:3000 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote}
+#         header_up X-Forwarded-For {remote}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+# }
+# ------------------------------------------------------------------------
+#
+# With MagicDNS + Tailscale certs you get a real trusted certificate
+# without exposing any ports to the public internet.
+# ============================================================================

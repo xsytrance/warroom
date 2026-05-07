@@ -1,0 +1,86 @@
+# ============================================================================
+# war-room.service - systemd unit for The War Room (Next.js PWA)
+# ============================================================================
+# Description:
+#   Runs the Next.js application in standalone mode on localhost only.
+#   Caddy (or Nginx) on the Tailnet interface reverse-proxies external
+#   requests to this service.
+#
+# Deployment notes:
+#   - Replace <USERNAME> with the actual system user (e.g. xsyamazon).
+#   - Place this file in /etc/systemd/system/war-room.service
+#   - Reload systemd:   sudo systemctl daemon-reload
+#   - Enable on boot:   sudo systemctl enable war-room.service
+#   - Start now:        sudo systemctl start war-room.service
+#   - Check status:     sudo systemctl status war-room.service
+#   - View logs:        sudo journalctl -u war-room.service -f
+# ============================================================================
+
+[Unit]
+# Human-readable name shown in systemctl status
+Description=The War Room - Next.js PWA
+
+# Ensure the network is up before starting the app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# --------------------------------------------------------------------------
+# Service behaviour
+# --------------------------------------------------------------------------
+# Type=simple means systemd considers the service active as soon as ExecStart
+# has forked.  This is ideal for long-running Node.js processes.
+Type=simple
+
+# Run as an unprivileged user (never run Node.js as root).
+# Replace <USERNAME> with your actual user, e.g. xsyamazon.
+User=<USERNAME>
+Group=<USERNAME>
+
+# Working directory containing .next/standalone/, package.json, etc.
+WorkingDirectory=/home/<USERNAME>/Apps/warroom
+
+# --------------------------------------------------------------------------
+# Environment
+# --------------------------------------------------------------------------
+# Load additional variables from the app's .env file.
+EnvironmentFile=/home/<USERNAME>/Apps/warroom/.env
+
+# Force production mode so Next.js skips dev-only code paths.
+Environment="NODE_ENV=production"
+
+# Port the Next.js standalone server listens on (localhost only).
+Environment="PORT=3000"
+
+# Bind only to loopback; Caddy/Nginx on the Tailnet interface handles
+# external traffic.
+Environment="HOSTNAME=127.0.0.1"
+
+# --------------------------------------------------------------------------
+# Execution
+# --------------------------------------------------------------------------
+# Next.js "output: 'standalone'" produces a self-contained server at
+# .next/standalone/server.js.  Running it directly with node avoids the
+# overhead of npm and ensures the correct bundled dependencies are used.
+ExecStart=/usr/bin/node /home/<USERNAME>/Apps/warroom/.next/standalone/server.js
+
+# --------------------------------------------------------------------------
+# Process management
+# --------------------------------------------------------------------------
+# Restart the service only when it exits with a non-zero status (crashes).
+Restart=on-failure
+
+# Wait 5 seconds before restarting to avoid tight restart loops.
+RestartSec=5
+
+# --------------------------------------------------------------------------
+# Logging
+# --------------------------------------------------------------------------
+# Send stdout and stderr to the systemd journal so they can be viewed with
+# journalctl -u war-room.service.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Start this service when the system reaches multi-user mode (normal boot).
+WantedBy=multi-user.target
