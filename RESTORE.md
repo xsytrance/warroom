@@ -527,3 +527,14 @@ sudo systemctl restart war-room
 ---
 
 *End of Backup, Restore & Update Guide*
+
+
+## Post-Restore/Update Production Sanity (Required)
+
+After any , run:
+
+
+
+Also ensure production DB path is absolute in :
+
+

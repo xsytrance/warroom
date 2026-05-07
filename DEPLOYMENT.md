@@ -228,7 +228,7 @@ nano /home/<USERNAME>/Apps/warroom/.env
 # =============================================
 
 # SQLite database path
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="file:/home/xsyvps/projects/warroom/dev.db"
 
 # JWT session secret — generate with: openssl rand -base64 48
 NEXTAUTH_SECRET="<PASTE-YOUR-48-BASE64-SECRET-HERE>"
@@ -269,6 +269,18 @@ openssl rand -base64 48   # Generate new NEXTAUTH_SECRET
 ```
 
 ---
+
+## 6A. Standalone Asset Prep + Production Verification (Required)
+
+After **every** , run:
+
+
+
+Then restart and verify:
+
+
+
+This prevents blank pages from missing standalone static/public assets and validates production runtime health.
 
 ## 6. Install and Build
 
@@ -392,7 +404,7 @@ WorkingDirectory=/home/<USERNAME>/Apps/warroom
 Environment="NODE_ENV=production"
 Environment="PORT=3000"
 Environment="HOSTNAME=127.0.0.1"
-Environment="DATABASE_URL=file:./dev.db"
+Environment="DATABASE_URL=file:/home/xsyvps/projects/warroom/dev.db"
 # Load additional env vars from .env file
 EnvironmentFile=/home/<USERNAME>/Apps/warroom/.env
 ExecStart=/usr/bin/npm start
@@ -867,3 +879,21 @@ sudo ss -tlnp | grep -E "3000|11369"
 ---
 
 *End of Deployment Guide*
+
+
+## Deployment durability checklist
+
+After every build:
+
+```bash
+npm run build
+./scripts/prepare-standalone-assets.sh
+sudo systemctl restart war-room.service
+./scripts/verify-production.sh
+```
+
+Use absolute production DB path:
+
+```env
+DATABASE_URL="file:/home/xsyvps/projects/warroom/dev.db"
+```
