@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  displayName  String
+  passwordHash String
+  avatarUrl    String?
+  roleTitle    String    @default("Operative")
+  status       String    @default("Online")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  posts        Post[]
+  comments     Comment[]
+  reactions    Reaction[]
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String   @default("radio")
+  color       String   @default("#ef4444")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts       Post[]
+}
+
+model Post {
+  id           String   @id @default(uuid())
+  authorId     String
+  roomId       String
+  type         String   @default("human_broadcast")
+  title        String?
+  body         String
+  mediaUrl     String?
+  mediaType    String?
+  linkUrl      String?
+  metadataJson String?
+  priority     String   @default("normal")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  author       User      @relation(fields: [authorId], references: [id])
+  room         Room      @relation(fields: [roomId], references: [id])
+  comments     Comment[]
+  reactions    Reaction[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  postId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  emoji     String
+  label     String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId, emoji])
+}
+
+model Agent {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  slug         String   @unique
+  roleTitle    String
+  avatarUrl    String?
+  status       String   @default("Idle")
+  apiTokenHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
