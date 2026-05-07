@@ -538,3 +538,22 @@ After any , run:
 Also ensure production DB path is absolute in :
 
 
+
+## Git pull/rebase guardrails for local deployment files
+
+If pull/rebase fails on untracked local files, move or stash them before retrying:
+
+```bash
+git status --short
+mkdir -p /tmp/warroom-local-hold
+# example
+mv package-lock.json /tmp/warroom-local-hold/package-lock.json.local 2>/dev/null || true
+
+git pull --rebase --autostash origin main
+```
+
+For routine updates, prefer:
+
+```bash
+./scripts/redeploy-safe.sh
+```

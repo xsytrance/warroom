@@ -42,3 +42,10 @@ next-env.d.ts
 
 # generated
 /src/lib/generated
+
+# local TLS/dev cert artifacts
+*.crt
+*.key
+
+# deployment-local scratch artifacts
+*.local

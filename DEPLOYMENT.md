@@ -897,3 +897,39 @@ Use absolute production DB path:
 ```env
 DATABASE_URL="file:/home/xsyvps/projects/warroom/dev.db"
 ```
+
+## Local file safety (Git hygiene)
+
+Before pull/rebase, ensure deployment-local files are not blocking git operations.
+
+Common local-only artifacts (ignored):
+- `*.crt`, `*.key`
+- `*.local`
+
+Recommended preflight:
+
+```bash
+git status --short
+git stash -u   # if you must temporarily park local untracked files
+```
+
+After deployment, restore if needed:
+
+```bash
+git stash list
+git stash pop
+```
+
+## One-command safe redeploy
+
+Use this wrapper to avoid missing steps:
+
+```bash
+./scripts/redeploy-safe.sh
+```
+
+It runs in order:
+1. `npm run build`
+2. `./scripts/prepare-standalone-assets.sh`
+3. `sudo systemctl restart war-room.service`
+4. `./scripts/verify-production.sh`
