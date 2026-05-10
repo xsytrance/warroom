@@ -6,6 +6,12 @@ A private, mobile-first Progressive Web App for xsytrance and Juan to coordinate
 
 ---
 
+## Latest Integration Docs
+
+- Ambient Radio integration: `AMBIENT_RADIO_INTEGRATION.md`
+
+---
+
 ## What is The War Room?
 
 The War Room is a private social command hub — not Slack, not Discord, not a generic chat app. It is a secure, tactical collaboration space where xsytrance and Juan can:
