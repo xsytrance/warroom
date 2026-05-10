@@ -16,12 +16,18 @@ interface User {
   avatarUrl?: string | null;
   roleTitle: string;
   status: string;
+  mustChangePassword?: boolean;
+}
+
+interface LoginResult {
+  error?: string;
+  requirePasswordChange?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ error?: string }>;
+  login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -63,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, password: string): Promise<LoginResult> => {
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -79,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setUser(data.user);
-        return {};
+        return { requirePasswordChange: !!data.requirePasswordChange };
       } catch {
         return { error: "Network error. Please try again." };
       }

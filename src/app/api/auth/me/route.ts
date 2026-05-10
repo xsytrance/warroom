@@ -36,6 +36,7 @@ export async function GET() {
         avatarUrl: user.avatarUrl,
         roleTitle: user.roleTitle,
         status: user.status,
+        mustChangePassword: user.mustChangePassword,
       },
     });
   } catch (error) {

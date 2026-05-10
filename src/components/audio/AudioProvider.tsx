@@ -44,8 +44,9 @@ function findStation(stationId: string | null | undefined): AmbientStation {
 
 function getInitialState() {
   const station = findStation(getStoredStationId());
-  const volume = getStoredVolume(0.35);
-  const muted = getStoredMuted(false);
+  const volume = getStoredVolume(0.25);
+  // default muted=true so autoplay can start without browser interaction blocks
+  const muted = getStoredMuted(true);
   return { station, volume, muted };
 }
 
@@ -62,7 +63,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const audio = new Audio(station.sourceUrl);
-    audio.preload = "none";
+    audio.preload = "auto";
     audio.loop = true;
     audio.volume = volume;
     audio.muted = muted;
@@ -118,7 +119,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           .catch(() => {
             setIsPlaying(false);
             setStatus("error");
-            setMessage("Playback blocked by browser. Tap play again.");
+            setMessage("Autoplay restricted. Tap play to resume.");
           });
       } else {
         setStatus("paused");
@@ -157,7 +158,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     audio.muted = nextMuted;
-  }, []);
+
+    if (!nextMuted && !isPlaying) {
+      audio
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setStatus("playing");
+          setMessage(null);
+        })
+        .catch(() => {
+          setMessage("Tap play to start audio.");
+        });
+    }
+  }, [isPlaying]);
 
   const setVolume = useCallback((nextVolume: number) => {
     const safe = Math.min(1, Math.max(0, nextVolume));
@@ -167,6 +181,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = safe;
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || isPlaying) return;
+
+    audio.muted = muted;
+    audio
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+        setStatus("playing");
+        if (muted) {
+          setMessage("Ambient live (muted). Tap speaker to unmute.");
+        } else {
+          setMessage(null);
+        }
+      })
+      .catch(() => {
+        setStatus("paused");
+        setMessage("Tap play to start ambient radio.");
+      });
+    // attempt once on initial mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = useMemo<AudioContextValue>(

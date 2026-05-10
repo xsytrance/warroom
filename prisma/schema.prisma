@@ -15,6 +15,8 @@ model User {
   avatarUrl    String?
   roleTitle    String    @default("Operative")
   status       String    @default("Online")
+  mustChangePassword Boolean @default(true)
+  passwordChangedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

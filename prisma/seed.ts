@@ -20,6 +20,7 @@ async function main() {
       roleTitle: "Supreme Commander",
       status: "Building the AI empire",
       avatarUrl: "/avatars/xsytrance.jpg",
+      mustChangePassword: true,
     },
   });
 
@@ -33,6 +34,7 @@ async function main() {
       roleTitle: "Field Commander",
       status: "Building the starter kit",
       avatarUrl: "/avatars/juan.jpg",
+      mustChangePassword: true,
     },
   });
 
@@ -149,6 +151,7 @@ async function main() {
         passwordHash: await bcrypt.hash(crypto.randomUUID(), 10), // Unusable password
         roleTitle: "Autonomous Agent",
         status: def.status,
+        mustChangePassword: false,
         avatarUrl: def.avatarUrl,
       },
     });
