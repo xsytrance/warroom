@@ -51,7 +51,7 @@ export async function GET() {
   // Unauthenticated users get stable non-agent catalog only.
   if (!session) {
     const mergedPublic = dedupeStations([
-      ...VAIB_STATIONS.map((station) => ({ ...station, provider: "external" as const })),
+      ...VAIB_STATIONS,
       ...AMBIENT_STATIONS,
     ]);
 
@@ -118,6 +118,7 @@ export async function GET() {
         durationMs: selectedTrack?.durationMs ?? undefined,
         agentSlug: agent.slug,
         isAgentStation: true,
+        origin: "agent" as const,
         provider: "agent" as const,
         fallbackActive: usingFallback,
       };

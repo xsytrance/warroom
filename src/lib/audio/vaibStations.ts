@@ -6,6 +6,7 @@ export type VaibStation = {
   genre: string;
   mood: string;
   attribution: string;
+  description: string;
   isAgentStation: false;
   origin: "vaib";
   priority?: number;
@@ -29,6 +30,7 @@ export const VAIB_STATIONS: VaibStation[] = [
     genre: "Ambient",
     mood: "Deep space / atmospheric",
     attribution: "SomaFM",
+    description: "vAIb imported ambient control-lane stream.",
     isAgentStation: false,
     origin: "vaib",
     priority: 100,
@@ -44,6 +46,7 @@ export const VAIB_STATIONS: VaibStation[] = [
     genre: "Trip-hop / downtempo",
     mood: "Late-night tactical drift",
     attribution: "SomaFM",
+    description: "vAIb imported downtempo tactical drift stream.",
     isAgentStation: false,
     origin: "vaib",
     priority: 90,
@@ -59,6 +62,7 @@ export const VAIB_STATIONS: VaibStation[] = [
     genre: "Downtempo / ambient",
     mood: "Smooth focus lane",
     attribution: "SomaFM",
+    description: "vAIb imported smooth focus ambient stream.",
     isAgentStation: false,
     origin: "vaib",
     priority: 80,
@@ -74,6 +78,7 @@ export const VAIB_STATIONS: VaibStation[] = [
     genre: "Ambient / interstitial",
     mood: "Comms-channel ambience",
     attribution: "SomaFM",
+    description: "vAIb imported radio-style interstitial ambience.",
     isAgentStation: false,
     origin: "vaib",
     priority: 70,
@@ -89,6 +94,7 @@ export const VAIB_STATIONS: VaibStation[] = [
     genre: "Alternative / post-punk",
     mood: "High-tempo nostalgia",
     attribution: "SomaFM",
+    description: "vAIb imported high-energy alt/new-wave stream.",
     isAgentStation: false,
     origin: "vaib",
     priority: 60,

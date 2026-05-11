@@ -8,9 +8,28 @@ type Props = {
   onChange: (stationId: string) => void;
 };
 
+function getStationLabel(station: AmbientStation) {
+  if (station.isAgentStation) {
+    return `📡 ${station.name}${station.fallbackActive ? " (fallback)" : ""}`;
+  }
+
+  if (station.origin === "vaib") {
+    return `vAIb • ${station.name}`;
+  }
+
+  if (station.provider === "local") {
+    return `local • ${station.name}`;
+  }
+
+  return station.name;
+}
+
 export function StationSelector({ stations, selectedId, onChange }: Props) {
   const agentStations = stations.filter((station) => station.isAgentStation);
-  const ambientStations = stations.filter((station) => !station.isAgentStation);
+  const vaibStations = stations.filter((station) => !station.isAgentStation && station.origin === "vaib");
+  const ambientStations = stations.filter(
+    (station) => !station.isAgentStation && (station.origin !== "vaib" || !station.origin)
+  );
 
   return (
     <label className="flex items-center gap-2 text-xs text-[#94a3b8]" aria-label="Ambient station selector">
@@ -24,7 +43,17 @@ export function StationSelector({ stations, selectedId, onChange }: Props) {
           <optgroup label="Agent Stations">
             {agentStations.map((station) => (
               <option key={station.id} value={station.id}>
-                {`📡 ${station.name}${station.fallbackActive ? " (fallback)" : ""}`}
+                {getStationLabel(station)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+
+        {vaibStations.length > 0 && (
+          <optgroup label="vAIb Stations">
+            {vaibStations.map((station) => (
+              <option key={station.id} value={station.id}>
+                {getStationLabel(station)}
               </option>
             ))}
           </optgroup>
@@ -34,7 +63,7 @@ export function StationSelector({ stations, selectedId, onChange }: Props) {
           <optgroup label="Ambient Stations">
             {ambientStations.map((station) => (
               <option key={station.id} value={station.id}>
-                {station.name}
+                {getStationLabel(station)}
               </option>
             ))}
           </optgroup>

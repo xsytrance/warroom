@@ -11,6 +11,7 @@ export type AmbientStation = {
   agentSlug?: string;
   isAgentStation?: boolean;
   provider?: "local" | "external" | "agent";
+  origin?: "ambient" | "vaib" | "agent";
   fallbackActive?: boolean;
 };
 
@@ -24,6 +25,8 @@ export const AMBIENT_STATIONS: AmbientStation[] = [
     attribution: "SomaFM",
     artist: "Various",
     genre: "Ambient",
+    provider: "external",
+    origin: "ambient",
   },
   {
     id: "night-channel",
@@ -34,6 +37,8 @@ export const AMBIENT_STATIONS: AmbientStation[] = [
     artist: "War Room Signals",
     genre: "Minimal Ambient",
     durationMs: 183000,
+    provider: "local",
+    origin: "ambient",
   },
   {
     id: "quiet-vector",
@@ -44,6 +49,8 @@ export const AMBIENT_STATIONS: AmbientStation[] = [
     artist: "War Room Signals",
     genre: "Synth Ambient",
     durationMs: 201000,
+    provider: "local",
+    origin: "ambient",
   },
   {
     id: "deep-grid",
@@ -54,6 +61,8 @@ export const AMBIENT_STATIONS: AmbientStation[] = [
     artist: "War Room Signals",
     genre: "Dark Ambient",
     durationMs: 236000,
+    provider: "local",
+    origin: "ambient",
   },
   {
     id: "cold-relay",
@@ -64,6 +73,8 @@ export const AMBIENT_STATIONS: AmbientStation[] = [
     artist: "War Room Signals",
     genre: "Cinematic Ambient",
     durationMs: 194000,
+    provider: "local",
+    origin: "ambient",
   },
 ];
 
