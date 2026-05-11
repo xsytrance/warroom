@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateAgent } from "@/lib/agent-auth";
+import { estimateXpFromText } from "@/lib/agent-identity";
+import { levelFromXp, rankFromLevel } from "@/lib/agent-level";
 
 const MAX_BODY_LENGTH = 2000;
 const MAX_TITLE_LENGTH = 200;
@@ -145,7 +147,7 @@ export async function POST(request: Request) {
     // 9. Create the post using shadow user ID
     const post = await prisma.post.create({
       data: {
-        body: hasBody ? postBody.trim() : '',
+        body: hasBody ? postBody.trim() : "",
         roomId: room.id,
         authorId: agent.shadowUserId,
         type: postType,
@@ -179,9 +181,34 @@ export async function POST(request: Request) {
       },
     });
 
+    // 10. Award XP based on output text size, then derive level/rank
+    const awardedXp = estimateXpFromText([title, hasBody ? postBody : null, JSON.stringify(metadata ?? {})]);
+    const currentAgent = await prisma.agent.findUnique({
+      where: { id: agent.agentId },
+      select: { xpTotal: true },
+    });
+
+    if (currentAgent) {
+      const nextXpTotal = currentAgent.xpTotal + BigInt(awardedXp);
+      const level = levelFromXp(nextXpTotal);
+      const rankTitle = rankFromLevel(level);
+
+      await prisma.agent.update({
+        where: { id: agent.agentId },
+        data: {
+          xpTotal: nextXpTotal,
+          level,
+          rankTitle,
+        },
+      });
+    }
+
     return NextResponse.json(
       {
         post,
+        xp: {
+          awarded: awardedXp,
+        },
         agent: {
           id: agent.agentId,
           name: agent.agentName,

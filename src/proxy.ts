@@ -19,6 +19,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/icons/') ||
     pathname.startsWith('/sounds/') ||
+    pathname.startsWith('/audio/') ||
     pathname.startsWith('/avatars/') ||
     pathname.startsWith('/uploads/') ||
     pathname === '/manifest.json' ||
@@ -49,5 +50,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sounds/|avatars/|uploads/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sounds/|audio/|avatars/|uploads/).*)'],
 };

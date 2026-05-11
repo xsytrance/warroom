@@ -1,4 +1,4 @@
-const CACHE_NAME = 'war-room-shell-v2';
+const CACHE_NAME = 'war-room-shell-v3';
 
 // Cache only immutable/static assets (never HTML routes)
 const STATIC_ASSETS = [
@@ -33,6 +33,13 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Allow clients to force activate a newly installed service worker.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {

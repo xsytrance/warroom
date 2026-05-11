@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         roleTitle: user.roleTitle,
         status: user.status,
         mustChangePassword: user.mustChangePassword,
+        activeAgentSlug: user.activeAgentSlug,
       },
       requirePasswordChange: user.mustChangePassword,
     });

@@ -8,21 +8,22 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  username     String    @unique
-  displayName  String
-  passwordHash String
-  avatarUrl    String?
-  roleTitle    String    @default("Operative")
-  status       String    @default("Online")
-  mustChangePassword Boolean @default(true)
-  passwordChangedAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  username           String    @unique
+  displayName        String
+  passwordHash       String
+  avatarUrl          String?
+  roleTitle          String    @default("Operative")
+  status             String    @default("Online")
+  activeAgentSlug    String?
+  mustChangePassword Boolean   @default(true)
+  passwordChangedAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  posts        Post[]
-  comments     Comment[]
-  reactions    Reaction[]
+  posts              Post[]
+  comments           Comment[]
+  reactions          Reaction[]
 }
 
 model Room {
@@ -86,13 +87,93 @@ model Reaction {
 }
 
 model Agent {
-  id           String   @id @default(uuid())
-  name         String   @unique
-  slug         String   @unique
-  roleTitle    String
-  avatarUrl    String?
-  status       String   @default("Idle")
-  apiTokenHash String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  name                    String   @unique
+  slug                    String   @unique
+  roleTitle               String
+  avatarUrl               String?
+  status                  String   @default("Idle")
+  apiTokenHash            String?
+
+  stylizedName            String?
+  rankTitle               String   @default("Recruit")
+  level                   Int      @default(0)
+  xpTotal                 BigInt   @default(0)
+  identitySeed            String?
+  bio                     String?
+  motto                   String?
+  favoriteGenresJson      String?
+  imageStylePreset        String?
+  imageProviderPreference String   @default("local-first")
+  topSongTrackId          String?
+  topSongAutoplay         Boolean  @default(true)
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  tracks                  AgentTrack[]
+  playbackEvents          AgentPlaybackEvent[]
+  topSong                 AgentTrack? @relation("AgentTopSong", fields: [topSongTrackId], references: [id], onDelete: SetNull)
+}
+
+model AgentTrack {
+  id                String   @id @default(uuid())
+  agentId           String
+  title             String
+  artist            String?
+  genre             String?
+  sourceUrl         String?
+  durationMs        Int?
+  playCount         Int      @default(0)
+  skipCount         Int      @default(0)
+  muteCount         Int      @default(0)
+  volumeAdjustCount Int      @default(0)
+  totalListenMs     BigInt   @default(0)
+  lastPlayedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  agent             Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  events            AgentPlaybackEvent[]
+  topSongFor        Agent[]  @relation("AgentTopSong")
+
+  @@index([agentId])
+  @@index([playCount])
+}
+
+model AgentPlaybackEvent {
+  id          String   @id @default(uuid())
+  agentId     String
+  trackId     String?
+  eventType   String
+  sessionId   String?
+  eventAt     DateTime @default(now())
+  positionMs  Int?
+  listenedMs  Int?
+  volume      Int?
+  muted       Boolean?
+  source      String?
+  contextJson String?
+
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  track       AgentTrack? @relation(fields: [trackId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, eventAt])
+  @@index([trackId, eventAt])
+  @@index([eventType, eventAt])
+}
+
+model ImageProviderSetting {
+  id             String   @id @default(uuid())
+  provider       String   @unique
+  enabled        Boolean  @default(false)
+  priority       Int      @default(100)
+  baseUrl        String?
+  modelName      String?
+  apiKeyMasked   String?
+  apiKeyCipher   String?
+  localModelPath String?
+  settingsJson   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
