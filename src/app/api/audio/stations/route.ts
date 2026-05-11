@@ -1,8 +1,30 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { AMBIENT_STATIONS } from "@/components/audio/stations";
+import { VAIB_STATIONS } from "@/lib/audio/vaibStations";
 
 const AGENT_FALLBACK_STREAM = "https://ice1.somafm.com/dronezone-128-mp3";
+
+type StationLike = {
+  id: string;
+  name: string;
+  sourceUrl: string;
+};
+
+function dedupeStations<T extends StationLike>(stations: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+
+  for (const station of stations) {
+    const key = `${station.sourceUrl.trim().toLowerCase()}::${station.name.trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(station);
+  }
+
+  return out;
+}
 
 async function probeStream(url: string): Promise<boolean> {
   const controller = new AbortController();
@@ -26,8 +48,14 @@ async function probeStream(url: string): Promise<boolean> {
 export async function GET() {
   const session = await getSession();
 
+  // Unauthenticated users get stable non-agent catalog only.
   if (!session) {
-    return NextResponse.json({ stations: [] });
+    const mergedPublic = dedupeStations([
+      ...VAIB_STATIONS.map((station) => ({ ...station, provider: "external" as const })),
+      ...AMBIENT_STATIONS,
+    ]);
+
+    return NextResponse.json({ stations: mergedPublic });
   }
 
   const agents = await prisma.agent.findMany({
@@ -45,7 +73,12 @@ export async function GET() {
     },
   });
 
-  const stations = await Promise.all(
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { activeAgentSlug: true },
+  });
+
+  const agentStations = await Promise.all(
     agents.map(async (agent) => {
       const rankedTracks = agent.tracks.filter((track) => Boolean(track.sourceUrl));
 
@@ -91,5 +124,20 @@ export async function GET() {
     })
   );
 
-  return NextResponse.json({ stations });
+  const activeAgentId = user?.activeAgentSlug ? `agent-${user.activeAgentSlug.trim().toLowerCase()}` : null;
+
+  const prioritizedAgentStations = activeAgentId
+    ? [
+        ...agentStations.filter((station) => station.id === activeAgentId),
+        ...agentStations.filter((station) => station.id !== activeAgentId),
+      ]
+    : agentStations;
+
+  const merged = dedupeStations([
+    ...prioritizedAgentStations,
+    ...VAIB_STATIONS.map((station) => ({ ...station, provider: "external" as const })),
+    ...AMBIENT_STATIONS,
+  ]);
+
+  return NextResponse.json({ stations: merged });
 }
