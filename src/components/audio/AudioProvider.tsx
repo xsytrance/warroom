@@ -20,6 +20,7 @@ import {
 } from "@/lib/audio/audioStorage";
 
 type AudioStatus = "idle" | "playing" | "paused" | "error";
+type StationOrigin = "agent" | "vaib" | "ambient" | "unknown";
 
 type AudioContextValue = {
   stations: AmbientStation[];
@@ -69,6 +70,21 @@ function resolvePlayableUrl(sourceUrl: string): string {
   }
 
   return sourceUrl;
+}
+
+function getStationOrigin(station: AmbientStation): StationOrigin {
+  if (station.isAgentStation) return "agent";
+  if (station.origin === "vaib") return "vaib";
+  if (station.origin === "ambient") return "ambient";
+  return "unknown";
+}
+
+function getStationProvider(station: AmbientStation): string {
+  if (station.isAgentStation) return "agent";
+  if (station.origin === "vaib") return "somafm";
+  if (station.provider === "local") return "local";
+  if (station.provider === "external") return "external";
+  return "unknown";
 }
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
@@ -283,7 +299,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             volume: Math.round((overrides?.volume ?? volume) * 100),
             muted: overrides?.muted ?? muted,
             source: "warroom-web",
-            context: overrides?.context,
+            context: {
+              stationOrigin: getStationOrigin(station),
+              provider: getStationProvider(station),
+              ...(overrides?.context ?? {}),
+            },
           }),
         });
       } catch {
@@ -292,6 +312,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     },
     [activeAgentSlug, muted, station, volume]
   );
+
 
   useEffect(() => {
     emitEventRef.current = emitEvent;
@@ -405,7 +426,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
       setStatus("error");
       setMessage("Station unavailable");
-      void emitEvent("error", { context: { stationId: currentStationRef.current.id } });
+      void emitEvent("error", {
+        context: {
+          stationId: currentStationRef.current.id,
+          failureReason: "network_error",
+        },
+      });
       void attemptFailoverRef.current("audio_error");
     };
 
@@ -503,6 +529,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             setIsPlaying(false);
             setStatus("error");
             setMessage("Autoplay restricted. Tap play to resume.");
+            void emitEvent("error", {
+              context: {
+                stationId: next.id,
+                failureReason: "autoplay_blocked",
+              },
+            });
             void attemptFailoverRef.current("resume_after_station_switch_failed");
           });
       } else {
@@ -539,6 +571,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
       setStatus("error");
       setMessage("Playback blocked by browser. Tap play again.");
+      void emitEvent("error", {
+        context: {
+          stationId: station.id,
+          failureReason: "autoplay_blocked",
+        },
+      });
       void attemptFailoverRef.current("manual_play_failed");
     }
   }, [emitEvent, ensureAudioContextActive, isPlaying, station.id]);
@@ -565,6 +603,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         })
         .catch(() => {
           setMessage("Tap play to start audio.");
+          void emitEvent("error", {
+            context: {
+              stationId: station.id,
+              failureReason: "autoplay_blocked",
+            },
+          });
           void attemptFailoverRef.current("unmute_resume_failed");
         });
     }
@@ -632,8 +676,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {
         setStatus("paused");
         setMessage("Tap play to start ambient radio.");
+        void emitEvent("error", {
+          context: {
+            stationId: station.id,
+            failureReason: "autoplay_blocked",
+          },
+        });
       });
-  }, [emitEvent, ensureAudioContextActive, muted, isPlaying]);
+  }, [emitEvent, ensureAudioContextActive, muted, isPlaying, station.id]);
 
   const tuneToActiveAgent = useCallback(() => {
     const targetId = `agent-${activeAgentSlug}`;

@@ -21,6 +21,7 @@ const EVENT_TYPES = new Set([
   "session_start",
   "session_end",
   "error",
+  "fallback_activated",
 ]);
 
 type AudioEventPayload = {
@@ -53,12 +54,35 @@ export async function POST(request: Request) {
   const agentSlug = (payload.agentSlug || "").trim().toLowerCase();
   const eventType = (payload.eventType || "").trim();
 
+  const context = payload.context ?? {};
+  const stationOrigin = typeof context.stationOrigin === "string" ? context.stationOrigin.trim().toLowerCase() : null;
+  const provider = typeof context.provider === "string" ? context.provider.trim().toLowerCase() : null;
+  const failureReason =
+    typeof context.failureReason === "string" ? context.failureReason.trim().toLowerCase() : null;
+
   if (!agentSlug) {
     return NextResponse.json({ error: "agentSlug is required" }, { status: 400 });
   }
 
   if (!eventType || !EVENT_TYPES.has(eventType)) {
     return NextResponse.json({ error: "Invalid eventType" }, { status: 400 });
+  }
+
+  if (stationOrigin && !["agent", "vaib", "ambient", "unknown"].includes(stationOrigin)) {
+    return NextResponse.json({ error: "Invalid stationOrigin" }, { status: 400 });
+  }
+
+  if (provider && !["agent", "somafm", "local", "external", "unknown"].includes(provider)) {
+    return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
+  }
+
+  if (
+    failureReason &&
+    !["network_error", "codec_unsupported", "autoplay_blocked", "fallback_activated", "unknown"].includes(
+      failureReason
+    )
+  ) {
+    return NextResponse.json({ error: "Invalid failureReason" }, { status: 400 });
   }
 
   const agent = await prisma.agent.findUnique({ where: { slug: agentSlug } });
@@ -128,7 +152,7 @@ export async function POST(request: Request) {
     if (Object.keys(data).length > 0) {
       await prisma.agentTrack.update({
         where: { id: trackRecord.id },
-        data: data as any,
+        data,
       });
     }
   }
