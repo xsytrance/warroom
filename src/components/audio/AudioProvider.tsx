@@ -41,6 +41,9 @@ type AudioContextValue = {
 
 const AudioContext = createContext<AudioContextValue | null>(null);
 
+const HEALTH_CACHE_TTL_MS = 5 * 60 * 1000;
+const STALL_FAILOVER_MS = 12000;
+
 function getInitialState() {
   const stationId = getStoredStationId();
   const station = AMBIENT_STATIONS.find((s) => s.id === stationId) ?? DEFAULT_STATION;
@@ -75,6 +78,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const healthCacheRef = useRef<Map<string, { ok: boolean; checkedAt: number }>>(new Map());
+  const currentStationRef = useRef<AmbientStation>(DEFAULT_STATION);
+  const failoverInProgressRef = useRef(false);
+  const stallTimerRef = useRef<number | null>(null);
+  const attemptFailoverRef = useRef<(reason: string) => Promise<boolean>>(async () => false);
+  const emitEventRef = useRef<(
+    eventType: string,
+    overrides?: {
+      positionMs?: number;
+      listenedMs?: number;
+      volume?: number;
+      muted?: boolean;
+      context?: Record<string, unknown>;
+    }
+  ) => Promise<void>>(async () => {});
+  const isPlayingRef = useRef(false);
 
   const initial = getInitialState();
 
@@ -88,6 +107,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [activeAgentSlug, setActiveAgentSlug] = useState<string>("vg-god");
   const [viewerUsername, setViewerUsername] = useState<string | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+
+  useEffect(() => {
+    currentStationRef.current = station;
+  }, [station]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   const ensureAudioContextActive = useCallback(async () => {
     const audioCtx = audioContextRef.current;
@@ -105,6 +132,118 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!stationId) return pool[0] ?? DEFAULT_STATION;
     return pool.find((s) => s.id === stationId) ?? (pool[0] ?? DEFAULT_STATION);
   }, [stations]);
+
+  const isStationHealthy = useCallback(async (candidate: AmbientStation): Promise<boolean> => {
+    const url = resolvePlayableUrl(candidate.sourceUrl);
+    const now = Date.now();
+    const cached = healthCacheRef.current.get(url);
+    if (cached && now - cached.checkedAt < HEALTH_CACHE_TTL_MS) {
+      return cached.ok;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const res = await fetch(url, {
+        method: "HEAD",
+        cache: "no-store",
+        redirect: "follow",
+        signal: controller.signal,
+      });
+      const ok = res.ok;
+      healthCacheRef.current.set(url, { ok, checkedAt: now });
+      return ok;
+    } catch {
+      healthCacheRef.current.set(url, { ok: false, checkedAt: now });
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }, []);
+
+  const getFailoverCandidates = useCallback((current: AmbientStation): AmbientStation[] => {
+    const sameOrigin = stations.filter(
+      (entry) => entry.id !== current.id && !entry.isAgentStation && entry.origin === current.origin
+    );
+
+    const external = stations.filter(
+      (entry) => entry.id !== current.id && !entry.isAgentStation && entry.provider === "external"
+    );
+
+    const ambientFallback = stations.filter(
+      (entry) => entry.id !== current.id && !entry.isAgentStation && entry.origin === "ambient"
+    );
+
+    const ordered = [
+      ...sameOrigin,
+      ...external,
+      ...ambientFallback,
+      ...stations.filter((entry) => entry.id !== current.id && !entry.isAgentStation),
+    ];
+    const seen = new Set<string>();
+
+    return ordered.filter((entry) => {
+      if (seen.has(entry.id)) return false;
+      seen.add(entry.id);
+      return true;
+    });
+  }, [stations]);
+
+  const attemptFailover = useCallback(async (reason: string): Promise<boolean> => {
+    if (failoverInProgressRef.current) return false;
+
+    const audio = audioRef.current;
+    if (!audio) return false;
+
+    const current = currentStationRef.current;
+    const candidates = getFailoverCandidates(current);
+    if (candidates.length === 0) return false;
+
+    failoverInProgressRef.current = true;
+
+    try {
+      for (const candidate of candidates) {
+        const healthy = await isStationHealthy(candidate);
+        if (!healthy) continue;
+
+        setStationState(candidate);
+        setStoredStationId(candidate.id);
+        currentStationRef.current = candidate;
+
+        audio.pause();
+        audio.src = resolvePlayableUrl(candidate.sourceUrl);
+        audio.load();
+
+        try {
+          await ensureAudioContextActive();
+          await audio.play();
+          setIsPlaying(true);
+          setStatus("playing");
+          listenStartRef.current = Date.now();
+          setMessage(`Switched to fallback: ${candidate.name}`);
+          void emitEventRef.current("fallback_activated", {
+            context: {
+              reason,
+              fromStationId: current.id,
+              toStationId: candidate.id,
+            },
+          });
+          return true;
+        } catch {
+          // try next candidate
+        }
+      }
+
+      return false;
+    } finally {
+      failoverInProgressRef.current = false;
+    }
+  }, [ensureAudioContextActive, getFailoverCandidates, isStationHealthy]);
+
+  useEffect(() => {
+    attemptFailoverRef.current = attemptFailover;
+  }, [attemptFailover]);
 
   const emitEvent = useCallback(
     async (
@@ -155,15 +294,19 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    let cancelled = false;
+    emitEventRef.current = emitEvent;
+  }, [emitEvent]);
+
+  useEffect(() => {
+    const cancelled = false;
 
     const loadAgentStations = async () => {
       try {
         const res = await fetch("/api/audio/stations", { credentials: "include" });
         if (!res.ok) return;
         const data = (await res.json()) as { stations?: AmbientStation[] };
-        const agentStations = Array.isArray(data.stations) ? data.stations : [];
-        const merged = [...agentStations, ...AMBIENT_STATIONS];
+        const fetchedStations = Array.isArray(data.stations) ? data.stations : [];
+        const merged = fetchedStations.length > 0 ? fetchedStations : AMBIENT_STATIONS;
         if (!cancelled) {
           setStations(merged);
           const preferredId = getStoredStationId();
@@ -234,6 +377,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // visualizer degrades gracefully when analyser can't init
     }
 
+    const clearStallTimer = () => {
+      if (stallTimerRef.current !== null) {
+        window.clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+    };
+
+    const startStallTimer = () => {
+      clearStallTimer();
+      stallTimerRef.current = window.setTimeout(() => {
+        if (!isPlayingRef.current) return;
+        void attemptFailoverRef.current("stall_timeout");
+      }, STALL_FAILOVER_MS);
+    };
+
     const onEnded = () => {
       setIsPlaying(false);
       setStatus("paused");
@@ -247,18 +405,50 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
       setStatus("error");
       setMessage("Station unavailable");
-      void emitEvent("error", { context: { stationId: station.id } });
+      void emitEvent("error", { context: { stationId: currentStationRef.current.id } });
+      void attemptFailoverRef.current("audio_error");
+    };
+
+    const onCanPlay = () => {
+      if (isPlayingRef.current) {
+        startStallTimer();
+      }
+    };
+
+    const onPlaying = () => {
+      clearStallTimer();
+    };
+
+    const onWaiting = () => {
+      if (isPlayingRef.current) {
+        startStallTimer();
+      }
+    };
+
+    const onStalled = () => {
+      if (isPlayingRef.current) {
+        startStallTimer();
+      }
     };
 
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
+    audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("waiting", onWaiting);
+    audio.addEventListener("stalled", onStalled);
 
     audioRef.current = audio;
 
     return () => {
+      clearStallTimer();
       audio.pause();
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
+      audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("waiting", onWaiting);
+      audio.removeEventListener("stalled", onStalled);
       audioRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,6 +503,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             setIsPlaying(false);
             setStatus("error");
             setMessage("Autoplay restricted. Tap play to resume.");
+            void attemptFailoverRef.current("resume_after_station_switch_failed");
           });
       } else {
         setStatus("paused");
@@ -348,6 +539,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
       setStatus("error");
       setMessage("Playback blocked by browser. Tap play again.");
+      void attemptFailoverRef.current("manual_play_failed");
     }
   }, [emitEvent, ensureAudioContextActive, isPlaying, station.id]);
 
@@ -373,6 +565,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         })
         .catch(() => {
           setMessage("Tap play to start audio.");
+          void attemptFailoverRef.current("unmute_resume_failed");
         });
     }
   }, [emitEvent, ensureAudioContextActive, isPlaying, station.id]);
