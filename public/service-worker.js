@@ -1,10 +1,7 @@
-const CACHE_NAME = 'war-room-shell-v1';
+const CACHE_NAME = 'war-room-shell-v3';
 
-// Static assets to cache for offline shell
+// Cache only immutable/static assets (never HTML routes)
 const STATIC_ASSETS = [
-  '/',
-  '/login',
-  '/feed',
   '/offline.html',
   '/manifest.json',
   '/icons/icon-72x72.png',
@@ -17,87 +14,76 @@ const STATIC_ASSETS = [
   '/icons/maskable-icon.png',
 ];
 
-// Install: cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    }).catch(() => {
-      // Some assets may not exist, that's OK
-      return Promise.resolve();
-    })
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .catch(() => Promise.resolve())
   );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
       );
     })
   );
   self.clients.claim();
 });
 
-// Fetch: serve shell from cache, API calls always go to network
+// Allow clients to force activate a newly installed service worker.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // NEVER cache API calls or private data
-  if (url.pathname.startsWith('/api/')) {
-    // Network only — no caching of auth, posts, uploads
+  // Never intercept non-GET, APIs, uploads
+  if (
+    request.method !== 'GET' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/uploads/')
+  ) {
     return;
   }
 
-  // NEVER cache uploaded images (they're private)
-  if (url.pathname.startsWith('/uploads/')) {
+  // Navigations should always go network-first to avoid stale white-screen shell
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/offline.html'))
+    );
     return;
   }
 
-  // For static assets, try cache first, then network
-  if (request.method === 'GET' && (
+  // Static assets: cache-first
+  if (
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.jpg') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.json') ||
-    url.pathname === '/' ||
-    url.pathname === '/login' ||
-    url.pathname === '/feed'
-  )) {
+    url.pathname.endsWith('.wav')
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        if (cached) {
-          return cached;
-        }
+        if (cached) return cached;
         return fetch(request).then((response) => {
-          // Cache new static assets
-          if (response.ok && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/uploads/')) {
+          if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, clone);
-            }).catch(() => {});
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
           }
           return response;
-        }).catch(() => {
-          // If offline and not in cache, show offline page
-          if (request.mode === 'navigate') {
-            return caches.match('/offline.html');
-          }
-          return new Response('Network unavailable', { status: 503 });
         });
       })
     );
-    return;
   }
-
-  // Default: network only
-  return;
 });

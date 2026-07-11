@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Radio, LayoutGrid, PlusCircle, Bot, User } from 'lucide-react';
+import { Radio, LayoutGrid, PlusCircle, Bot, User, Settings } from 'lucide-react';
 
 const navItems = [
   { href: '/feed', label: 'Feed', icon: Radio },
   { href: '/rooms', label: 'Rooms', icon: LayoutGrid },
   { href: '/agents', label: 'Agents', icon: Bot },
+  { href: '/analytics', label: 'Stats', icon: Settings },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 

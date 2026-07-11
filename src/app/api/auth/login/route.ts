@@ -48,7 +48,10 @@ export async function POST(request: Request) {
         avatarUrl: user.avatarUrl,
         roleTitle: user.roleTitle,
         status: user.status,
+        mustChangePassword: user.mustChangePassword,
+        activeAgentSlug: user.activeAgentSlug,
       },
+      requirePasswordChange: user.mustChangePassword,
     });
   } catch (error) {
     console.error("Login error:", error);

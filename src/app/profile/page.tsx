@@ -19,7 +19,15 @@ interface UserProfile {
   status: string;
   postsCount: number;
   reactionsGiven: number;
+  activeAgentSlug?: string | null;
   createdAt?: string;
+}
+
+interface AgentOption {
+  id: string;
+  slug: string;
+  name: string;
+  stylizedName?: string | null;
 }
 
 function getRoleColor(role: string) {
@@ -44,9 +52,20 @@ function getRoleRing(role: string) {
   }
 }
 
+function formatAgentSlug(slug?: string | null) {
+  if (!slug) return 'None selected';
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [agents, setAgents] = useState<AgentOption[]>([]);
+  const [savingActiveAgent, setSavingActiveAgent] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -57,6 +76,56 @@ export default function ProfilePage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetch('/api/agents')
+      .then((res) => res.json())
+      .then((data) => {
+        const nextAgents = Array.isArray(data?.agents)
+          ? (data.agents as AgentOption[])
+          : [];
+        setAgents(nextAgents);
+      })
+      .catch(() => {
+        setAgents([]);
+      });
+  }, []);
+
+  async function handleActiveAgentChange(slug: string) {
+    if (!profile) return;
+    const normalizedSlug = slug.trim().toLowerCase();
+    setSavingActiveAgent(true);
+
+    try {
+      const res = await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activeAgentSlug: normalizedSlug || null }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update active agent');
+      }
+
+      const data = await res.json();
+      const updatedUser = (data?.user || null) as UserProfile | null;
+      if (updatedUser) {
+        setProfile((prev) => (prev ? { ...prev, activeAgentSlug: updatedUser.activeAgentSlug } : prev));
+      } else {
+        setProfile((prev) => (prev ? { ...prev, activeAgentSlug: normalizedSlug || null } : prev));
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('warroom:active-agent-changed', {
+          detail: { slug: normalizedSlug || null },
+        })
+      );
+    } catch (error) {
+      console.error('Active agent update error:', error);
+    } finally {
+      setSavingActiveAgent(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -178,11 +247,51 @@ export default function ProfilePage() {
           </GlassCard>
         </motion.div>
 
-        {/* Tactical Info */}
+        {/* Active Agent Control */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
+          className="mt-4"
+        >
+          <GlassCard padding="md">
+            <h3 className="text-sm font-semibold text-[#e2e8f0] mb-3 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#a855f7]" />
+              ACTIVE AGENT TARGETING
+            </h3>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-[#94a3b8]">
+                Telemetry + XP attribution target
+              </label>
+              <select
+                value={profile.activeAgentSlug || ''}
+                onChange={(event) => {
+                  void handleActiveAgentChange(event.target.value);
+                }}
+                disabled={savingActiveAgent}
+                className="w-full h-10 rounded-lg bg-[#0f1117] border border-white/10 px-3 text-sm text-[#e2e8f0] disabled:opacity-60"
+              >
+                <option value="">None selected</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.slug}>
+                    {agent.stylizedName || agent.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-[#64748b]">
+                {savingActiveAgent
+                  ? 'Updating active agent…'
+                  : 'Switching updates audio telemetry routing immediately.'}
+              </p>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        {/* Tactical Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
           className="mt-4"
         >
           <GlassCard padding="md">
@@ -208,6 +317,13 @@ export default function ProfilePage() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-[#94a3b8]">Status</span>
                 <StatusPill status={profile.status} />
+              </div>
+              <div className="h-px bg-white/5" />
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94a3b8]">Active Agent</span>
+                <span className="text-sm text-[#e2e8f0]/80">
+                  {formatAgentSlug(profile.activeAgentSlug)}
+                </span>
               </div>
               <div className="h-px bg-white/5" />
               <div className="flex justify-between items-center">

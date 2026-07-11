@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { AmbientRadioMount } from "@/components/audio/AmbientRadioMount";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -70,6 +71,7 @@ export default function RootLayout({
       <body className="min-h-dvh bg-[#0a0a0f] text-[#e2e8f0] antialiased">
         <ServiceWorkerRegister />
         {children}
+        <AmbientRadioMount />
       </body>
     </html>
   );

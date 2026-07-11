@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { ParticleField } from '@/components/motion/ParticleField';
 import { TacticalGrid } from '@/components/motion/TacticalGrid';
 import BottomNav from '@/components/BottomNav';
@@ -14,6 +15,37 @@ interface WarRoomShellProps {
 }
 
 export function WarRoomShell({ children, showNav = true, showBackground = true, className }: WarRoomShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    let alive = true;
+
+    const verifyAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!alive) return;
+
+        if (!res.ok) {
+          router.replace('/login');
+          return;
+        }
+
+        const data = await res.json();
+        if (data?.user?.mustChangePassword && pathname !== '/change-password') {
+          router.replace('/change-password');
+        }
+      } catch {
+        if (alive) router.replace('/login');
+      }
+    };
+
+    void verifyAuth();
+    return () => {
+      alive = false;
+    };
+  }, [pathname, router]);
+
   return (
     <div className={`min-h-dvh bg-[#0a0a0f] text-[#e2e8f0] relative overflow-hidden ${className || ''}`}>
       <OfflineBanner />
@@ -26,8 +58,7 @@ export function WarRoomShell({ children, showNav = true, showBackground = true, 
           </div>
           <ParticleField />
           <TacticalGrid />
-          {/* Scanlines overlay */}
-          <div 
+          <div
             className="fixed inset-0 z-[1] pointer-events-none opacity-[0.03]"
             style={{
               backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)',

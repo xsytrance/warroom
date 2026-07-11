@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AuthProvider, useAuth } from "@/components/layout/AuthContext";
@@ -9,6 +9,8 @@ import { TacticalGrid } from "@/components/motion/TacticalGrid";
 import { WarRoomInsignia } from "@/components/WarRoomInsignia";
 import { Lock, User, AlertTriangle } from "lucide-react";
 
+const HIDE_CREDS_KEY = "war-room-hide-demo-creds";
+
 function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
@@ -16,6 +18,11 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hideCreds, setHideCreds] = useState(false);
+
+  useEffect(() => {
+    setHideCreds(localStorage.getItem(HIDE_CREDS_KEY) === "true");
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,16 +37,24 @@ function LoginForm() {
       return;
     }
 
+    if (result.requirePasswordChange) {
+      router.push("/change-password");
+      return;
+    }
+
     router.push("/feed");
+  };
+
+  const setNeverShowCreds = (value: boolean) => {
+    setHideCreds(value);
+    localStorage.setItem(HIDE_CREDS_KEY, value ? "true" : "false");
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0a0a0f]">
-      {/* Animated backgrounds */}
       <TacticalGrid />
       <ParticleField />
 
-      {/* Content */}
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -47,7 +62,6 @@ function LoginForm() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="w-full max-w-sm"
         >
-          {/* Title block */}
           <div className="mb-10 text-center">
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
@@ -76,18 +90,8 @@ function LoginForm() {
             >
               Private command hub for the AI empire
             </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.55, duration: 0.6 }}
-              className="mt-2 text-xs text-[#475569] tracking-wide"
-            >
-              Authorized commanders only. Secure internal signal.
-            </motion.p>
           </div>
 
-          {/* Login card */}
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -95,12 +99,8 @@ function LoginForm() {
             className="rounded-xl border border-white/10 bg-[#12121a]/80 p-6 shadow-2xl backdrop-blur-md"
           >
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-              {/* Username */}
               <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="username"
-                  className="text-xs font-medium uppercase tracking-wider text-[#94a3b8]"
-                >
+                <label htmlFor="username" className="text-xs font-medium uppercase tracking-wider text-[#94a3b8]">
                   Username
                 </label>
                 <div className="relative">
@@ -117,12 +117,8 @@ function LoginForm() {
                 </div>
               </div>
 
-              {/* Password */}
               <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="password"
-                  className="text-xs font-medium uppercase tracking-wider text-[#94a3b8]"
-                >
+                <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-[#94a3b8]">
                   Password
                 </label>
                 <div className="relative">
@@ -139,7 +135,6 @@ function LoginForm() {
                 </div>
               </div>
 
-              {/* Error message */}
               {error && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -151,38 +146,45 @@ function LoginForm() {
                 </motion.div>
               )}
 
-              {/* Submit button */}
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="submit"
                 disabled={isSubmitting}
                 className="relative h-14 w-full overflow-hidden rounded-lg bg-[#ef4444] font-semibold tracking-wider text-[#e2e8f0] shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all hover:bg-[#dc2626] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] disabled:opacity-60"
               >
-                <span className="relative z-10">
-                  {isSubmitting ? "AUTHENTICATING..." : "ENTER THE HUB"}
-                </span>
-                {/* Glow overlay */}
-                <span className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-inset ring-white/20" />
+                <span className="relative z-10">{isSubmitting ? "AUTHENTICATING..." : "ENTER THE HUB"}</span>
               </motion.button>
             </form>
           </motion.div>
 
-          {/* Demo credentials hint */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.9, duration: 0.6 }}
-            className="mt-8 text-center"
-          >
-            <div className="flex items-center justify-center gap-1.5 text-xs text-[#94a3b8]">
-              <Lock className="h-3 w-3" />
-              <span className="uppercase tracking-wider">Demo Credentials</span>
-            </div>
-            <div className="mt-2 flex flex-col gap-1 text-xs text-[#94a3b8]" style={{ fontFamily: 'var(--font-geist-mono), monospace' }}>
-              <span>xsytrance / warroom2024</span>
-              <span>juan / warroom2024</span>
-            </div>
-          </motion.div>
+          {!hideCreds && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9, duration: 0.6 }}
+              className="mt-6 text-center"
+            >
+              <div className="flex items-center justify-center gap-1.5 text-xs text-[#94a3b8]">
+                <Lock className="h-3 w-3" />
+                <span className="uppercase tracking-wider">Initial Credentials (change required)</span>
+              </div>
+              <div className="mt-2 flex flex-col gap-1 text-xs text-[#94a3b8]" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
+                <span>xsytrance / warroom2024</span>
+                <span>juan / warroom2024</span>
+              </div>
+            </motion.div>
+          )}
+
+          <div className="mt-3 flex items-center justify-center gap-2 text-xs text-[#94a3b8]">
+            <input
+              id="hideCreds"
+              type="checkbox"
+              checked={hideCreds}
+              onChange={(e) => setNeverShowCreds(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-white/20 bg-[#0a0a0f]"
+            />
+            <label htmlFor="hideCreds">Never display initial credentials on this device</label>
+          </div>
         </motion.div>
       </div>
     </div>

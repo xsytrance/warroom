@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateAgent } from "@/lib/agent-auth";
+import { levelFromXp, rankFromLevel, xpProgress } from "@/lib/agent-level";
 
 /**
  * GET /api/agent/me
@@ -15,6 +16,20 @@ export async function GET(request: Request) {
       { error: "Unauthorized — invalid or missing agent token" },
       { status: 401 }
     );
+  }
+
+  const dbAgent = await prisma.agent.findUnique({
+    where: { id: agent.agentId },
+    include: {
+      tracks: {
+        orderBy: [{ playCount: "desc" }, { lastPlayedAt: "desc" }],
+        take: 5,
+      },
+    },
+  });
+
+  if (!dbAgent) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
 
   // Fetch recent posts by this agent (via shadow user)
@@ -33,12 +48,29 @@ export async function GET(request: Request) {
     },
   });
 
+  const level = levelFromXp(dbAgent.xpTotal);
+  const rankTitle = rankFromLevel(level);
+
   return NextResponse.json({
     agent: {
-      id: agent.agentId,
-      name: agent.agentName,
-      slug: agent.agentSlug,
-      role: agent.agentRole,
+      id: dbAgent.id,
+      name: dbAgent.name,
+      stylizedName: dbAgent.stylizedName || dbAgent.name,
+      slug: dbAgent.slug,
+      role: dbAgent.roleTitle,
+      rank: rankTitle,
+      level,
+      xpTotal: dbAgent.xpTotal.toString(),
+      xp: xpProgress(dbAgent.xpTotal),
+      imageProviderPreference: dbAgent.imageProviderPreference,
+      topSongAutoplay: dbAgent.topSongAutoplay,
+      avatarUrl: dbAgent.avatarUrl,
+      motto: dbAgent.motto,
+      bio: dbAgent.bio,
+      favoriteTracks: dbAgent.tracks.map((track) => ({
+        ...track,
+        totalListenMs: track.totalListenMs.toString(),
+      })),
     },
     stats: {
       totalPosts: await prisma.post.count({
